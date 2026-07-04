@@ -31,6 +31,12 @@ import {
 } from '@waha/structures/chats.dto';
 import { SendButtonsRequest } from '@waha/structures/chatting.buttons.dto';
 import { SendListRequest } from '@waha/structures/chatting.list.dto';
+import {
+  AcceptCallRequest,
+  EndCallRequest,
+  StartCallRequest,
+  StartCallResponse,
+} from '@waha/structures/calls.dto';
 import { BinaryFile, RemoteFile } from '@waha/structures/files.dto';
 import { Label, LabelDTO, LabelID } from '@waha/structures/labels.dto';
 import { LidToPhoneNumber } from '@waha/structures/lids.dto';
@@ -656,6 +662,18 @@ export abstract class WhatsappSession {
   }
 
   public rejectCall(from: string, id: string): Promise<void> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public startCall(request: StartCallRequest): Promise<StartCallResponse> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public acceptCall(request: AcceptCallRequest): Promise<void> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public endCall(request: EndCallRequest): Promise<void> {
     throw new NotImplementedByEngineError();
   }
 
