@@ -36,6 +36,8 @@ import {
   EndCallRequest,
   StartCallRequest,
   StartCallResponse,
+  WebRTCRequest,
+  WebRTCResponse,
 } from '@waha/structures/calls.dto';
 import { BinaryFile, RemoteFile } from '@waha/structures/files.dto';
 import { Label, LabelDTO, LabelID } from '@waha/structures/labels.dto';
@@ -674,6 +676,13 @@ export abstract class WhatsappSession {
   }
 
   public endCall(request: EndCallRequest): Promise<void> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public webrtcCall(
+    id: string,
+    request: WebRTCRequest,
+  ): Promise<WebRTCResponse> {
     throw new NotImplementedByEngineError();
   }
 

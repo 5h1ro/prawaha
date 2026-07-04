@@ -100,3 +100,18 @@ export class EndCallRequest {
   @IsNotEmpty()
   id: string;
 }
+
+export class WebRTCRequest {
+  @ApiProperty({
+    description: 'Browser WebRTC SDP offer',
+    example: 'v=0\\r\\no=- ... (SDP)',
+  })
+  @IsString()
+  @IsNotEmpty()
+  sdpOffer: string;
+}
+
+export class WebRTCResponse {
+  @ApiProperty({ description: 'Server WebRTC SDP answer' })
+  sdpAnswer: string;
+}
