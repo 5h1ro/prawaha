@@ -11167,6 +11167,189 @@ export namespace messages {
             return EndCallRequest.deserialize(bytes);
         }
     }
+    export class WebRTCRequest extends pb_1.Message {
+        #one_of_decls: number[][] = [];
+        constructor(data?: any[] | {
+            session?: Session;
+            id?: string;
+            sdpOffer?: string;
+        }) {
+            super();
+            pb_1.Message.initialize(this, Array.isArray(data) ? data : [], 0, -1, [], this.#one_of_decls);
+            if (!Array.isArray(data) && typeof data == "object") {
+                if ("session" in data && data.session != undefined) {
+                    this.session = data.session;
+                }
+                if ("id" in data && data.id != undefined) {
+                    this.id = data.id;
+                }
+                if ("sdpOffer" in data && data.sdpOffer != undefined) {
+                    this.sdpOffer = data.sdpOffer;
+                }
+            }
+        }
+        get session() {
+            return pb_1.Message.getWrapperField(this, Session, 1) as Session;
+        }
+        set session(value: Session) {
+            pb_1.Message.setWrapperField(this, 1, value);
+        }
+        get has_session() {
+            return pb_1.Message.getField(this, 1) != null;
+        }
+        get id() {
+            return pb_1.Message.getFieldWithDefault(this, 2, "") as string;
+        }
+        set id(value: string) {
+            pb_1.Message.setField(this, 2, value);
+        }
+        get sdpOffer() {
+            return pb_1.Message.getFieldWithDefault(this, 3, "") as string;
+        }
+        set sdpOffer(value: string) {
+            pb_1.Message.setField(this, 3, value);
+        }
+        static fromObject(data: {
+            session?: ReturnType<typeof Session.prototype.toObject>;
+            id?: string;
+            sdpOffer?: string;
+        }): WebRTCRequest {
+            const message = new WebRTCRequest({});
+            if (data.session != null) {
+                message.session = Session.fromObject(data.session);
+            }
+            if (data.id != null) {
+                message.id = data.id;
+            }
+            if (data.sdpOffer != null) {
+                message.sdpOffer = data.sdpOffer;
+            }
+            return message;
+        }
+        toObject() {
+            const data: {
+                session?: ReturnType<typeof Session.prototype.toObject>;
+                id?: string;
+                sdpOffer?: string;
+            } = {};
+            if (this.session != null) {
+                data.session = this.session.toObject();
+            }
+            if (this.id != null) {
+                data.id = this.id;
+            }
+            if (this.sdpOffer != null) {
+                data.sdpOffer = this.sdpOffer;
+            }
+            return data;
+        }
+        serialize(): Uint8Array;
+        serialize(w: pb_1.BinaryWriter): void;
+        serialize(w?: pb_1.BinaryWriter): Uint8Array | void {
+            const writer = w || new pb_1.BinaryWriter();
+            if (this.has_session)
+                writer.writeMessage(1, this.session, () => this.session.serialize(writer));
+            if (this.id.length)
+                writer.writeString(2, this.id);
+            if (this.sdpOffer.length)
+                writer.writeString(3, this.sdpOffer);
+            if (!w)
+                return writer.getResultBuffer();
+        }
+        static deserialize(bytes: Uint8Array | pb_1.BinaryReader): WebRTCRequest {
+            const reader = bytes instanceof pb_1.BinaryReader ? bytes : new pb_1.BinaryReader(bytes), message = new WebRTCRequest();
+            while (reader.nextField()) {
+                if (reader.isEndGroup())
+                    break;
+                switch (reader.getFieldNumber()) {
+                    case 1:
+                        reader.readMessage(message.session, () => message.session = Session.deserialize(reader));
+                        break;
+                    case 2:
+                        message.id = reader.readString();
+                        break;
+                    case 3:
+                        message.sdpOffer = reader.readString();
+                        break;
+                    default: reader.skipField();
+                }
+            }
+            return message;
+        }
+        serializeBinary(): Uint8Array {
+            return this.serialize();
+        }
+        static deserializeBinary(bytes: Uint8Array): WebRTCRequest {
+            return WebRTCRequest.deserialize(bytes);
+        }
+    }
+    export class WebRTCResponse extends pb_1.Message {
+        #one_of_decls: number[][] = [];
+        constructor(data?: any[] | {
+            sdpAnswer?: string;
+        }) {
+            super();
+            pb_1.Message.initialize(this, Array.isArray(data) ? data : [], 0, -1, [], this.#one_of_decls);
+            if (!Array.isArray(data) && typeof data == "object") {
+                if ("sdpAnswer" in data && data.sdpAnswer != undefined) {
+                    this.sdpAnswer = data.sdpAnswer;
+                }
+            }
+        }
+        get sdpAnswer() {
+            return pb_1.Message.getFieldWithDefault(this, 1, "") as string;
+        }
+        set sdpAnswer(value: string) {
+            pb_1.Message.setField(this, 1, value);
+        }
+        static fromObject(data: {
+            sdpAnswer?: string;
+        }): WebRTCResponse {
+            const message = new WebRTCResponse({});
+            if (data.sdpAnswer != null) {
+                message.sdpAnswer = data.sdpAnswer;
+            }
+            return message;
+        }
+        toObject() {
+            const data: {
+                sdpAnswer?: string;
+            } = {};
+            if (this.sdpAnswer != null) {
+                data.sdpAnswer = this.sdpAnswer;
+            }
+            return data;
+        }
+        serialize(): Uint8Array;
+        serialize(w: pb_1.BinaryWriter): void;
+        serialize(w?: pb_1.BinaryWriter): Uint8Array | void {
+            const writer = w || new pb_1.BinaryWriter();
+            if (this.sdpAnswer.length)
+                writer.writeString(1, this.sdpAnswer);
+            if (!w)
+                return writer.getResultBuffer();
+        }
+        static deserialize(bytes: Uint8Array | pb_1.BinaryReader): WebRTCResponse {
+            const reader = bytes instanceof pb_1.BinaryReader ? bytes : new pb_1.BinaryReader(bytes), message = new WebRTCResponse();
+            while (reader.nextField()) {
+                if (reader.isEndGroup())
+                    break;
+                switch (reader.getFieldNumber()) {
+                    case 1:
+                        message.sdpAnswer = reader.readString();
+                        break;
+                    default: reader.skipField();
+                }
+            }
+            return message;
+        }
+        serializeBinary(): Uint8Array {
+            return this.serialize();
+        }
+        static deserializeBinary(bytes: Uint8Array): WebRTCResponse {
+            return WebRTCResponse.deserialize(bytes);
+        }
+    }
     export class PollMessage extends pb_1.Message {
         #one_of_decls: number[][] = [];
         constructor(data?: any[] | {
@@ -12031,6 +12214,15 @@ export namespace messages {
                 responseSerialize: (message: Empty) => Buffer.from(message.serialize()),
                 responseDeserialize: (bytes: Buffer) => Empty.deserialize(new Uint8Array(bytes))
             },
+            WebRTC: {
+                path: "/messages.MessageService/WebRTC",
+                requestStream: false,
+                responseStream: false,
+                requestSerialize: (message: WebRTCRequest) => Buffer.from(message.serialize()),
+                requestDeserialize: (bytes: Buffer) => WebRTCRequest.deserialize(new Uint8Array(bytes)),
+                responseSerialize: (message: WebRTCResponse) => Buffer.from(message.serialize()),
+                responseDeserialize: (bytes: Buffer) => WebRTCResponse.deserialize(new Uint8Array(bytes))
+            },
             GetMessageById: {
                 path: "/messages.MessageService/GetMessageById",
                 requestStream: false,
@@ -12124,6 +12316,7 @@ export namespace messages {
         abstract StartCall(call: grpc_1.ServerUnaryCall<StartCallRequest, StartCallResponse>, callback: grpc_1.sendUnaryData<StartCallResponse>): void;
         abstract AcceptCall(call: grpc_1.ServerUnaryCall<AcceptCallRequest, Empty>, callback: grpc_1.sendUnaryData<Empty>): void;
         abstract EndCall(call: grpc_1.ServerUnaryCall<EndCallRequest, Empty>, callback: grpc_1.sendUnaryData<Empty>): void;
+        abstract WebRTC(call: grpc_1.ServerUnaryCall<WebRTCRequest, WebRTCResponse>, callback: grpc_1.sendUnaryData<WebRTCResponse>): void;
         abstract GetMessageById(call: grpc_1.ServerUnaryCall<EntityByIdRequest, Json>, callback: grpc_1.sendUnaryData<Json>): void;
         abstract GetMessages(call: grpc_1.ServerUnaryCall<GetMessagesRequest, JsonList>, callback: grpc_1.sendUnaryData<JsonList>): void;
         abstract GetChats(call: grpc_1.ServerUnaryCall<GetChatsRequest, JsonList>, callback: grpc_1.sendUnaryData<JsonList>): void;
@@ -12323,6 +12516,9 @@ export namespace messages {
         };
         EndCall: GrpcUnaryServiceInterface<EndCallRequest, Empty> = (message: EndCallRequest, metadata: grpc_1.Metadata | grpc_1.CallOptions | grpc_1.requestCallback<Empty>, options?: grpc_1.CallOptions | grpc_1.requestCallback<Empty>, callback?: grpc_1.requestCallback<Empty>): grpc_1.ClientUnaryCall => {
             return super.EndCall(message, metadata, options, callback);
+        };
+        WebRTC: GrpcUnaryServiceInterface<WebRTCRequest, WebRTCResponse> = (message: WebRTCRequest, metadata: grpc_1.Metadata | grpc_1.CallOptions | grpc_1.requestCallback<WebRTCResponse>, options?: grpc_1.CallOptions | grpc_1.requestCallback<WebRTCResponse>, callback?: grpc_1.requestCallback<WebRTCResponse>): grpc_1.ClientUnaryCall => {
+            return super.WebRTC(message, metadata, options, callback);
         };
         GetMessageById: GrpcUnaryServiceInterface<EntityByIdRequest, Json> = (message: EntityByIdRequest, metadata: grpc_1.Metadata | grpc_1.CallOptions | grpc_1.requestCallback<Json>, options?: grpc_1.CallOptions | grpc_1.requestCallback<Json>, callback?: grpc_1.requestCallback<Json>): grpc_1.ClientUnaryCall => {
             return super.GetMessageById(message, metadata, options, callback);

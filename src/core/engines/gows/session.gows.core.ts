@@ -133,6 +133,8 @@ import {
   EndCallRequest,
   StartCallRequest,
   StartCallResponse,
+  WebRTCRequest,
+  WebRTCResponse,
 } from '@waha/structures/calls.dto';
 import {
   MeInfo,
@@ -1008,6 +1010,20 @@ export class WhatsappSessionGoWSCore extends WhatsappSession {
       id: request.id,
     });
     await promisify(this.client.EndCall)(grpcRequest);
+  }
+
+  @Activity()
+  async webrtcCall(
+    id: string,
+    request: WebRTCRequest,
+  ): Promise<WebRTCResponse> {
+    const grpcRequest = new messages.WebRTCRequest({
+      session: this.session,
+      id: id,
+      sdpOffer: request.sdpOffer,
+    });
+    const response = await promisify(this.client.WebRTC)(grpcRequest);
+    return { sdpAnswer: response.sdpAnswer };
   }
 
   @Activity()

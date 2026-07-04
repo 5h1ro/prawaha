@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Param,
   Post,
   UseGuards,
   UsePipes,
@@ -20,6 +21,8 @@ import {
   RejectCallRequest,
   StartCallRequest,
   StartCallResponse,
+  WebRTCRequest,
+  WebRTCResponse,
 } from '../structures/calls.dto';
 import { PoliciesGuard } from '@waha/core/auth/policies.guard';
 import { CheckPolicies } from '@waha/core/auth/policies.decorator';
@@ -81,5 +84,21 @@ export class CallsController {
     @Body() request: EndCallRequest,
   ): Promise<void> {
     return session.endCall(request);
+  }
+
+  @Post(':id/webrtc')
+  @SessionApiParam
+  @ApiOperation({
+    summary: 'Exchange the browser WebRTC SDP for a native call',
+    description:
+      'Answers the browser SDP offer and opens the PCM audio data channel (browser mic → call, peer audio → browser).',
+  })
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  webrtcCall(
+    @WorkingSessionParam session: WhatsappSession,
+    @Param('id') id: string,
+    @Body() request: WebRTCRequest,
+  ): Promise<WebRTCResponse> {
+    return session.webrtcCall(id, request);
   }
 }
