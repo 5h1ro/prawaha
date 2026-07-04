@@ -127,7 +127,13 @@ import {
   WAMessage,
   WAMessageReaction,
 } from '@waha/structures/responses.dto';
-import { CallData } from '@waha/structures/calls.dto';
+import {
+  AcceptCallRequest,
+  CallData,
+  EndCallRequest,
+  StartCallRequest,
+  StartCallResponse,
+} from '@waha/structures/calls.dto';
 import {
   MeInfo,
   ProxyConfig,
@@ -970,6 +976,38 @@ export class WhatsappSessionGoWSCore extends WhatsappSession {
       id: id,
     });
     await promisify(this.client.RejectCall)(request);
+  }
+
+  @Activity()
+  async startCall(request: StartCallRequest): Promise<StartCallResponse> {
+    const grpcRequest = new messages.StartCallRequest({
+      session: this.session,
+      to: normalizeJid(toJID(this.ensureSuffix(request.to))),
+      audioIn: request.audioIn ?? '',
+      audioOut: request.audioOut ?? '',
+    });
+    const response = await promisify(this.client.StartCall)(grpcRequest);
+    return { id: response.id };
+  }
+
+  @Activity()
+  async acceptCall(request: AcceptCallRequest): Promise<void> {
+    const grpcRequest = new messages.AcceptCallRequest({
+      session: this.session,
+      id: request.id,
+      audioIn: request.audioIn ?? '',
+      audioOut: request.audioOut ?? '',
+    });
+    await promisify(this.client.AcceptCall)(grpcRequest);
+  }
+
+  @Activity()
+  async endCall(request: EndCallRequest): Promise<void> {
+    const grpcRequest = new messages.EndCallRequest({
+      session: this.session,
+      id: request.id,
+    });
+    await promisify(this.client.EndCall)(grpcRequest);
   }
 
   @Activity()
