@@ -33,6 +33,7 @@ import {
   extractBody,
   getDestination,
 } from '@waha/core/engines/noweb/session.noweb.core';
+import { buttonToJson } from '@waha/core/engines/noweb/noweb.buttons';
 import { extractMediaContent } from '@waha/core/engines/noweb/utils';
 import { NotImplementedByEngineError } from '@waha/core/exceptions';
 import { IMediaEngineProcessor } from '@waha/core/media/IMediaEngineProcessor';
@@ -77,6 +78,10 @@ import {
   CheckNumberStatusQuery,
   EditMessageRequest,
   MessageButtonReply,
+  AIRichBlock,
+  MessageAIRichCodeBlockRequest,
+  MessageAIRichMarkdownRequest,
+  MessageAIRichRequest,
   MessageContactVcardRequest,
   MessageFileRequest,
   MessageForwardRequest,
@@ -93,6 +98,7 @@ import {
   SendSeenRequest,
   WANumberExistResult,
 } from '@waha/structures/chatting.dto';
+import { SendButtonsRequest } from '@waha/structures/chatting.buttons.dto';
 import { SendListRequest } from '@waha/structures/chatting.list.dto';
 import { ContactQuery, ContactUpdateBody } from '@waha/structures/contacts.dto';
 import {
@@ -1047,6 +1053,61 @@ export class WhatsappSessionGoWSCore extends WhatsappSession {
   }
 
   @Activity()
+  async sendAIRichCodeBlock(request: MessageAIRichCodeBlockRequest) {
+    const jid = normalizeJid(toJID(this.ensureSuffix(request.chatId)));
+    const message = new messages.CodeBlockRequest({
+      id: request.id,
+      jid: jid,
+      code: request.code,
+      language: request.language || 'javascript',
+      session: this.session,
+      replyTo: getMessageIdFromSerialized(request.reply_to),
+    });
+    if (request.title) {
+      message.title = request.title;
+    }
+    if (request.footer) {
+      message.footer = request.footer;
+    }
+    const response = await promisify(this.client.SendCodeBlock)(message);
+    const data = response.toObject();
+    return this.messageResponse(jid, data);
+  }
+
+  @Activity()
+  async sendAIRichMarkdown(request: MessageAIRichMarkdownRequest) {
+    const jid = normalizeJid(toJID(this.ensureSuffix(request.chatId)));
+    const message = new messages.RichMarkdownRequest({
+      id: request.id,
+      jid: jid,
+      text: request.text,
+      session: this.session,
+      replyTo: getMessageIdFromSerialized(request.reply_to),
+    });
+    const response = await promisify(this.client.SendMarkdown)(message);
+    const data = response.toObject();
+    return this.messageResponse(jid, data);
+  }
+
+  @Activity()
+  async sendAIRichMessage(request: MessageAIRichRequest) {
+    const jid = normalizeJid(toJID(this.ensureSuffix(request.chatId)));
+    const submessages = (request.blocks || []).map((block) =>
+      aiRichBlockToSubmessage(block),
+    );
+    const message = new messages.RichMessageRequest({
+      id: request.id,
+      jid: jid,
+      session: this.session,
+      submessagesJson: JSON.stringify(submessages),
+      replyTo: getMessageIdFromSerialized(request.reply_to),
+    });
+    const response = await promisify(this.client.SendRichMessage)(message);
+    const data = response.toObject();
+    return this.messageResponse(jid, data);
+  }
+
+  @Activity()
   public async editMessage(
     chatId: string,
     messageId: string,
@@ -1122,6 +1183,41 @@ export class WhatsappSessionGoWSCore extends WhatsappSession {
       jid: jid,
       session: this.session,
       pollVote: pollVote,
+    });
+    const response = await promisify(this.client.SendMessage)(message);
+    const data = response.toObject();
+    return this.messageResponse(jid, data);
+  }
+
+  @Activity()
+  async sendButtons(request: SendButtonsRequest) {
+    const jid = normalizeJid(toJID(this.ensureSuffix(request.chatId)));
+    const buttons = new messages.ButtonsMessage({});
+    buttons.buttons = request.buttons.map((button) => {
+      const data = buttonToJson(button);
+      return new messages.InteractiveButton({
+        name: data.name,
+        buttonParamsJson: data.buttonParamsJson,
+      });
+    });
+    if (request.header) {
+      buttons.header = request.header;
+    }
+    if (request.body) {
+      buttons.body = request.body;
+    }
+    if (request.footer) {
+      buttons.footer = request.footer;
+    }
+    if (request.headerImage) {
+      const headerImage = await this.fileToMedia(request.headerImage);
+      headerImage.type = messages.MediaType.IMAGE;
+      buttons.headerImage = headerImage;
+    }
+    const message = new messages.MessageRequest({
+      jid: jid,
+      session: this.session,
+      buttons: buttons,
     });
     const response = await promisify(this.client.SendMessage)(message);
     const data = response.toObject();
@@ -2366,6 +2462,9 @@ export class WhatsappSessionGoWSCore extends WhatsappSession {
       conversationTimestamp: parseTimestampToSeconds(
         chat.ConversationTimestamp,
       ),
+      pinned: chat.Pinned ?? false,
+      archived: chat.Archived ?? false,
+      muted: chat.Muted ?? false,
     };
   }
 
@@ -3269,4 +3368,52 @@ function fixPollCreationKey(
 
   // Other
   return poll;
+}
+
+// AIRichResponseSubMessageType enum values from WAAICommonDeprecated:
+// TEXT=2, INLINE_IMAGE=3, TABLE=4, CODE=5, LATEX=8.
+// The gows SendRichMessage RPC json.Unmarshal's this into the proto structs,
+// so keys must match the proto json field names.
+function aiRichBlockToSubmessage(block: AIRichBlock): any {
+  switch (block.type) {
+    case 'code':
+      return {
+        messageType: 5,
+        codeMetadata: {
+          codeLanguage: block.language || 'javascript',
+          codeBlocks: [{ codeContent: block.text || '' }],
+        },
+      };
+    case 'table': {
+      const rows: any[] = [];
+      if (block.headers && block.headers.length > 0) {
+        rows.push({ items: block.headers, isHeading: true });
+      }
+      for (const row of block.rows || []) {
+        rows.push({ items: row });
+      }
+      return {
+        messageType: 4,
+        tableMetadata: { title: block.title || '', rows: rows },
+      };
+    }
+    case 'latex':
+      return {
+        messageType: 8,
+        latexMetadata: { text: block.text || '' },
+      };
+    case 'image':
+      return {
+        messageType: 3,
+        imageMetadata: {
+          imageURL: {
+            imageHighResURL: block.imageUrl || '',
+            imagePreviewURL: block.imageUrl || '',
+          },
+          imageText: block.imageText || '',
+        },
+      };
+    default:
+      return { messageType: 2, messageText: block.text || '' };
+  }
 }
