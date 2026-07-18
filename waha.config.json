@@ -1,12 +1,12 @@
 {
   "waha": {
     "gows": {
-      "repo": "JotaDev66/gows-plus",
-      "ref": "v1.0.42-calls2"
+      "repo": "5h1ro/prawago",
+      "ref": "b4b4d58b7dbedf76a9d14b9312ee9f5182494746"
     },
     "dashboard": {
-      "repo": "JotaDev66/waha-hub",
-      "ref": "gh-pages"
+      "repo": "5h1ro/prawahub",
+      "ref": "da0a141c0c82b9746d14f8ffaab91dc758ecdaef"
     }
   }
 }
