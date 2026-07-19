@@ -1,5 +1,14 @@
 ARG NODE_IMAGE_TAG=24.11-bookworm-slim
 ARG GOLANG_IMAGE_TAG=1.26-bookworm
+# Which dashboard stage to use: "dashboard-download" (fetch+build from GitHub,
+# default) or "dashboard-local" (COPY a pre-built dashboard from ./dashboard-dist
+# in the build context). Local is used for multi-arch builds so the arch-agnostic
+# Nuxt build runs once natively instead of under slow arm64 emulation.
+ARG DASHBOARD_STAGE=dashboard-download
+# Which gows stage to use: "gows-download" (clone + compile from source, default)
+# or "gows-local" (COPY a pre-built binary from ./gows-bin/<arch>/gows). Local
+# avoids the CGO/libvips compile under slow arm64 emulation during multi-arch.
+ARG GOWS_STAGE=gows-download
 
 #
 # Build
@@ -43,15 +52,22 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
         PATH="/git/node_modules/.bin:$PATH" CFLAGS="-march=x86-64" CXXFLAGS="-march=x86-64" node install/build.js; \
     fi
 
-# Trim the runtime node_modules. This image only ever runs on linux/x64/glibc,
-# so drop native binaries for every other platform (canvas + sharp), the sharp
-# libvips build headers (runtime uses the bundled/system libvips), and
-# build/lint/test-only dependencies (runtime executes compiled JS in dist).
-RUN cd /git/node_modules/@napi-rs && for d in canvas-*; do \
-        [ "$d" = "canvas-linux-x64-gnu" ] || rm -rf "$d"; \
+# Trim the runtime node_modules. Keep only the native binaries (canvas + sharp)
+# for the target arch so the image stays small while supporting both amd64 and
+# arm64; also drop the sharp libvips build headers (runtime uses the
+# bundled/system libvips) and build/lint/test-only dependencies (runtime
+# executes compiled JS in dist). TARGETARCH is provided by BuildKit/buildx.
+ARG TARGETARCH
+RUN case "$TARGETARCH" in \
+      arm64) KEEP_CANVAS=canvas-linux-arm64-gnu; KEEP_SHARP="sharp-linux-arm64 sharp-libvips-linux-arm64";; \
+      *)     KEEP_CANVAS=canvas-linux-x64-gnu;   KEEP_SHARP="sharp-linux-x64 sharp-libvips-linux-x64";; \
+    esac; \
+    cd /git/node_modules/@napi-rs && for d in canvas-*; do \
+        [ "$d" = "$KEEP_CANVAS" ] || rm -rf "$d"; \
     done; \
     cd /git/node_modules/@img && for d in sharp-*; do \
-        case "$d" in sharp-linux-x64|sharp-libvips-linux-x64) ;; *) rm -rf "$d";; esac; \
+        keep=0; for k in $KEEP_SHARP; do [ "$d" = "$k" ] && keep=1; done; \
+        [ "$keep" = "1" ] || rm -rf "$d"; \
     done; \
     cd /git && rm -rf \
         node_modules/@oxlint node_modules/oxlint \
@@ -66,9 +82,9 @@ RUN cd /git/node_modules/@napi-rs && for d in canvas-*; do \
         node_modules/eslint node_modules/@eslint
 
 #
-# Dashboard
+# Dashboard (download + build from GitHub)
 #
-FROM node:${NODE_IMAGE_TAG} AS dashboard
+FROM node:${NODE_IMAGE_TAG} AS dashboard-download
 
 # jq to parse json
 RUN apt-get update && apt-get install -y jq && rm -rf /var/lib/apt/lists/*
@@ -102,9 +118,18 @@ RUN mkdir -p /dashboard \
       {} +
 
 #
-# GOWS
+# Dashboard (pre-built, injected from ./dashboard-dist in the build context)
 #
-FROM golang:${GOLANG_IMAGE_TAG} AS gows
+FROM node:${NODE_IMAGE_TAG} AS dashboard-local
+COPY dashboard-dist /dashboard
+
+# Selected dashboard source (see DASHBOARD_STAGE at the top).
+FROM ${DASHBOARD_STAGE} AS dashboard
+
+#
+# GOWS (fetch + build from source)
+#
+FROM golang:${GOLANG_IMAGE_TAG} AS gows-download
 
 # tools to fetch and build gows from source
 RUN apt-get update && \
@@ -127,6 +152,17 @@ RUN \
     mkdir -p /go/gows/bin && \
     cp /go/gows-src/bin/gows /go/gows/bin/gows && \
     chmod +x /go/gows/bin/gows
+
+#
+# GOWS (pre-built, injected per-arch from ./gows-bin/<arch>/gows)
+#
+FROM golang:${GOLANG_IMAGE_TAG} AS gows-local
+ARG TARGETARCH
+COPY gows-bin/${TARGETARCH}/gows /go/gows/bin/gows
+RUN chmod +x /go/gows/bin/gows
+
+# Selected gows source (see GOWS_STAGE at the top).
+FROM ${GOWS_STAGE} AS gows
 
 
 #

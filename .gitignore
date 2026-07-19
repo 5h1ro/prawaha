@@ -57,3 +57,7 @@ lerna-debug.log*
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Multi-arch build injection artifacts (built locally, not committed)
+dashboard-dist/
+gows-bin/
