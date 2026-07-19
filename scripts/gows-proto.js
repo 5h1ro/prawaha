@@ -3,11 +3,7 @@ const fs = require('fs');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const path = require('path');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const axios = require('axios');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { execSync } = require('child_process');
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const yargs = require('yargs');
 
 // Defaults
 const CONFIG_FILE = 'waha.config.json';
@@ -33,11 +29,15 @@ const DEFAULT_DIR = './src/core/engines/gows/proto';
 
 const PROTO_FILES = ['gows.proto'];
 const PROTO_OUTPUT = './src/core/engines/gows/grpc';
+const PROTO_SOURCE_DIR = 'proto';
 
 // Helper function to clean directory
 function cleanDirectory(directory, suffix) {
   if (!fs.existsSync(directory)) {
     fs.mkdirSync(directory, { recursive: true });
+    return;
+  }
+  if (!suffix) {
     return;
   }
 
@@ -52,8 +52,10 @@ function cleanDirectory(directory, suffix) {
 
 // Helper function to download files
 async function downloadFiles(repo, ref, directory) {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const axios = require('axios');
   for (const file of PROTO_FILES) {
-    const url = `https://github.com/${repo}/releases/download/${ref}/${file}`;
+    const url = `https://raw.githubusercontent.com/${repo}/${ref}/${PROTO_SOURCE_DIR}/${file}`;
     const filePath = path.join(directory, file);
     try {
       const response = await axios.get(url, { responseType: 'arraybuffer' });
@@ -77,7 +79,7 @@ function handleBuild(dir) {
   console.log('Building gRPC files...');
   cleanDirectory(PROTO_OUTPUT);
 
-  const command = `grpc_tools_node_protoc \
+  const command = `node_modules/.bin/grpc_tools_node_protoc \
         --plugin=protoc-gen-ts=node_modules/.bin/protoc-gen-ts \
         --plugin=protoc-gen-grpc=node_modules/.bin/grpc_tools_node_protoc_plugin \
         --js_out=import_style=commonjs,binary:${PROTO_OUTPUT} \
@@ -90,6 +92,7 @@ function handleBuild(dir) {
     console.log('gRPC files built successfully.');
   } catch (error) {
     console.error(`Failed to build gRPC files: ${error.message}`);
+    process.exitCode = 1;
   }
 }
 
@@ -97,48 +100,21 @@ function handleBuild(dir) {
 // Commands
 //
 
-// fetch
-yargs.command(
-  'fetch',
-  'Fetch .proto files from GitHub',
-  (yargs) => {
-    yargs
-      .option('repo', {
-        describe: 'GitHub repository (owner/repo)',
-        type: 'string',
-        default: DEFAULT_REPO,
-      })
-      .option('ref', {
-        describe: 'Git reference (branch or commit SHA)',
-        type: 'string',
-        default: DEFAULT_REF,
-      })
-      .option('dir', {
-        describe: 'Directory to output .proto files',
-        type: 'string',
-        default: DEFAULT_DIR,
-      });
-  },
-  async (argv) => {
-    await handleFetch(argv.repo, argv.ref, argv.dir);
-  },
-);
+function argValue(name, fallback) {
+  const index = process.argv.indexOf(`--${name}`);
+  return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
+}
 
-// build
-yargs.command(
-  'build',
-  'Build gRPC files from .proto files',
-  (yargs) => {
-    yargs.option('dir', {
-      describe: 'Directory containing .proto files',
-      type: 'string',
-      default: DEFAULT_DIR,
-    });
-  },
-  (argv) => {
-    handleBuild(argv.dir);
-  },
-);
-
-// Parse arguments
-yargs.parse();
+const command = process.argv[2];
+if (command === 'fetch') {
+  handleFetch(
+    argValue('repo', DEFAULT_REPO),
+    argValue('ref', DEFAULT_REF),
+    argValue('dir', DEFAULT_DIR),
+  );
+} else if (command === 'build') {
+  handleBuild(argValue('dir', DEFAULT_DIR));
+} else {
+  console.error('Usage: node scripts/gows-proto.js <fetch|build> [--repo owner/repo] [--ref ref] [--dir dir]');
+  process.exitCode = 1;
+}

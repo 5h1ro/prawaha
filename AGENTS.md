@@ -126,6 +126,6 @@ Each tool file mirrors an API domain (e.g. `chats.tools.ts` → chats endpoints)
 
 - WEBJS: `../whatsapp-web.js`
 - NOWEB: `../WhiskeySockets-Baileys` and `../whatsapp-rust-bridge`
-- GOWS: `../gows` and `../whatsmeow`
+- GOWS: `../prawago` and `../whatsmeow`
 - WPP: `../wa-js`, `../wppconnect`, `../wppconnect-server`
 - ChatWoot: `../chatwoot`

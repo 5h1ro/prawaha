@@ -1,5 +1,5 @@
 ARG NODE_IMAGE_TAG=24.11-bookworm-slim
-ARG GOLANG_IMAGE_TAG=1.24-bookworm
+ARG GOLANG_IMAGE_TAG=1.26-bookworm
 
 #
 # Build
@@ -43,6 +43,28 @@ RUN if [ "$(uname -m)" = "x86_64" ]; then \
         PATH="/git/node_modules/.bin:$PATH" CFLAGS="-march=x86-64" CXXFLAGS="-march=x86-64" node install/build.js; \
     fi
 
+# Trim the runtime node_modules. This image only ever runs on linux/x64/glibc,
+# so drop native binaries for every other platform (canvas + sharp), the sharp
+# libvips build headers (runtime uses the bundled/system libvips), and
+# build/lint/test-only dependencies (runtime executes compiled JS in dist).
+RUN cd /git/node_modules/@napi-rs && for d in canvas-*; do \
+        [ "$d" = "canvas-linux-x64-gnu" ] || rm -rf "$d"; \
+    done; \
+    cd /git/node_modules/@img && for d in sharp-*; do \
+        case "$d" in sharp-linux-x64|sharp-libvips-linux-x64) ;; *) rm -rf "$d";; esac; \
+    done; \
+    cd /git && rm -rf \
+        node_modules/@oxlint node_modules/oxlint \
+        node_modules/@angular-devkit \
+        node_modules/@nestjs/cli \
+        node_modules/@types \
+        node_modules/protoc-gen-ts \
+        node_modules/grpc-tools \
+        node_modules/jest node_modules/@jest node_modules/ts-jest node_modules/babel-jest \
+        node_modules/prettier \
+        node_modules/ts-node \
+        node_modules/eslint node_modules/@eslint
+
 #
 # Dashboard
 #
@@ -59,41 +81,51 @@ RUN \
     WAHA_DASHBOARD_GITHUB_REPO=$(jq -r '.waha.dashboard.repo' /tmp/waha.config.json) && \
     WAHA_DASHBOARD_SHA=$(jq -r '.waha.dashboard.ref' /tmp/waha.config.json) && \
     WAHA_DASHBOARD_REPO_NAME=$(basename "${WAHA_DASHBOARD_GITHUB_REPO}") && \
-    wget https://github.com/${WAHA_DASHBOARD_GITHUB_REPO}/archive/${WAHA_DASHBOARD_SHA}.zip \
+    wget --tries=30 --continue --timeout=60 --read-timeout=60 --waitretry=10 --retry-connrefused \
+        -O ${WAHA_DASHBOARD_SHA}.zip \
+        https://github.com/${WAHA_DASHBOARD_GITHUB_REPO}/archive/${WAHA_DASHBOARD_SHA}.zip \
+    && unzip -t ${WAHA_DASHBOARD_SHA}.zip \
     && unzip ${WAHA_DASHBOARD_SHA}.zip -d /tmp/dashboard \
-    && mkdir -p /dashboard \
-    && mv /tmp/dashboard/${WAHA_DASHBOARD_REPO_NAME}-${WAHA_DASHBOARD_SHA}/* /dashboard/ \
-    && rm -rf ${WAHA_DASHBOARD_SHA}.zip \
-    && rm -rf /tmp/dashboard/${WAHA_DASHBOARD_REPO_NAME}-${WAHA_DASHBOARD_SHA}
+    && mv /tmp/dashboard/${WAHA_DASHBOARD_REPO_NAME}-${WAHA_DASHBOARD_SHA} /dashboard-src \
+    && rm -rf ${WAHA_DASHBOARD_SHA}.zip
+
+WORKDIR /dashboard-src/ui
+RUN corepack enable && yarn install && yarn generate
+
+RUN mkdir -p /dashboard \
+    && cp -R /dashboard-src/ui/.output/public/* /dashboard/ \
+    && find /dashboard -type f -name '*.js' -exec sed -i \
+      -e 's/Discador/Dialer/g' \
+      -e 's/Abrir discador/Open dialer/g' \
+      -e 's/Atender/Answer/g' \
+      -e 's/Recusar/Decline/g' \
+      {} +
 
 #
 # GOWS
 #
 FROM golang:${GOLANG_IMAGE_TAG} AS gows
 
-# jq to parse json
-RUN apt-get update && apt-get install -y jq && rm -rf /var/lib/apt/lists/*
-
-# install protoc
+# tools to fetch and build gows from source
 RUN apt-get update && \
-    apt-get install protobuf-compiler -y
+    apt-get install -y jq git protobuf-compiler pkg-config libvips-dev build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
-# Image processing for thumbnails
-RUN apt-get update  \
-    && apt-get install -y libvips-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
 
 COPY waha.config.json /tmp/waha.config.json
 WORKDIR /go/gows
 RUN \
     GOWS_GITHUB_REPO=$(jq -r '.waha.gows.repo' /tmp/waha.config.json) && \
-    GOWS_SHA=$(jq -r '.waha.gows.ref' /tmp/waha.config.json) && \
-    ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then ARCH="amd64"; \
-    elif [ "$ARCH" = "aarch64" ]; then ARCH="arm64"; \
-    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    GOWS_REF=$(jq -r '.waha.gows.ref' /tmp/waha.config.json) && \
+    git clone https://github.com/${GOWS_GITHUB_REPO}.git /go/gows-src && \
+    cd /go/gows-src && \
+    export PATH=/go/bin:${PATH} && \
+    git checkout ${GOWS_REF} && \
+    make build-proto build && \
     mkdir -p /go/gows/bin && \
-    wget -O /go/gows/bin/gows https://github.com/${GOWS_GITHUB_REPO}/releases/download/${GOWS_SHA}/gows-${ARCH} && \
+    cp /go/gows-src/bin/gows /go/gows/bin/gows && \
     chmod +x /go/gows/bin/gows
 
 
@@ -111,25 +143,28 @@ ARG WHATSAPP_DEFAULT_ENGINE
 RUN echo "USE_BROWSER=$USE_BROWSER"
 
 # Install ffmpeg to generate previews for videos
-RUN apt-get update && apt-get install -y ffmpeg --no-install-recommends && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y ffmpeg --no-install-recommends && apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*
 
 # Image processing for thumbnails
 RUN apt-get update  \
     && apt-get install -y libvips \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*
 
 # Install zip and unzip - either for chromium or chrome
 RUN if [ "$USE_BROWSER" = "chromium" ] || [ "$USE_BROWSER" = "chrome" ]; then \
     apt-get update  \
     && apt-get install -y zip unzip \
-    && rm -rf /var/lib/apt/lists/*; \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*; \
     fi
 
 # Install wget - either for chromium or chrome
 RUN if [ "$USE_BROWSER" = "chromium" ] || [ "$USE_BROWSER" = "chrome" ]; then \
     apt-get update  \
     && apt-get install -y wget \
-    && rm -rf /var/lib/apt/lists/*; \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*; \
     fi
 
 # Install fonts if using either chromium or chrome
@@ -150,7 +185,8 @@ RUN if [ "$USE_BROWSER" = "chromium" ] || [ "$USE_BROWSER" = "chrome" ]; then \
         fonts-wqy-zenhei \
         fonts-open-sans \
       --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*; \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*; \
     fi
 
 # Install xvfb, xauth
@@ -165,7 +201,8 @@ RUN if [ "$USE_BROWSER" = "chromium" ] || [ "$USE_BROWSER" = "chrome" ]; then \
         libgtk-3-0 \
         libdrm2 \
         ca-certificates \
-        && rm -rf /var/lib/apt/lists/*; \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*; \
     fi
 
 # Install Chromium
@@ -174,7 +211,8 @@ RUN if [ "$USE_BROWSER" = "chromium" ]; then \
         && apt-get update \
         && apt-get install -y chromium \
           --no-install-recommends \
-        && rm -rf /var/lib/apt/lists/*; \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*; \
     fi
 
 # Install Chrome
@@ -187,17 +225,13 @@ RUN if [ "$USE_BROWSER" = "chrome" ]; then \
           && apt-get update \
           && apt install -y /tmp/chrome.deb \
           && rm /tmp/chrome.deb \
-          && rm -rf /var/lib/apt/lists/*; \
+          && apt-get clean \
+          && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*; \
     fi
-
-# curl
-RUN apt-get update  \
-    && apt-get install -y curl \
-    && rm -rf /var/lib/apt/lists/*
 
 # Build and install opustags so audio metadata can be cleaned up inside the container
 RUN set -eux; \
-    buildDeps='build-essential cmake pkg-config libogg-dev'; \
+    buildDeps='build-essential cmake pkg-config libogg-dev curl'; \
     apt-get update; \
     apt-get install -y --no-install-recommends ${buildDeps}; \
     mkdir -p /tmp/opustags; \
@@ -209,16 +243,18 @@ RUN set -eux; \
     cmake --install build; \
     rm -rf /tmp/opustags; \
     apt-get purge -y --auto-remove ${buildDeps}; \
-    rm -rf /var/lib/apt/lists/*
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*
 
 # GOWS requirements
 # libc6
 RUN  apt-get update \
      && apt-get install -y libc6 \
-     && rm -rf /var/lib/apt/lists/*
+     && apt-get clean \
+     && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*
 
 # Install tini for proper init process
-RUN apt-get update && apt-get install -y tini && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y tini && apt-get clean && rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* /var/cache/apt/archives/partial/*
 
 # Set the ENV for docker image
 ENV WHATSAPP_DEFAULT_ENGINE=$WHATSAPP_DEFAULT_ENGINE

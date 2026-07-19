@@ -1,0 +1,59 @@
+# Deploy prawaha on a server by pulling the published image (no build).
+# Quick start:
+#   cp .env.example .env      # optional: set keys / WAHA_PUBLIC_IP
+#   docker compose -f docker-compose.server.yaml up -d
+# Then open http://SERVER:3000/dashboard (dashboard) and http://SERVER:3000 (Swagger).
+#
+# NOTE: 5h1ro/prawaha:gows is amd64 (x86_64) only. On ARM servers it will not run.
+services:
+  prawaha:
+    image: 5h1ro/prawaha:gows
+    container_name: prawaha
+    restart: unless-stopped
+    pull_policy: always
+
+    # Add "dns" if the server has trouble resolving "web.whatsapp.com"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '100m'
+        max-file: '10'
+
+    ports:
+      # HTTP API, Swagger and dashboard
+      - "${WAHA_HTTP_PORT:-3000}:3000/tcp"
+      # WebRTC media for the browser dialer (published 1:1 so the advertised
+      # ICE candidate matches the reachable port). Only needed for native calls.
+      - "${WEBRTC_UDP_PORT:-7881}:${WEBRTC_UDP_PORT:-7881}/udp"
+
+    environment:
+      # Engine
+      WHATSAPP_DEFAULT_ENGINE: GOWS
+
+      # Auth. The dashboard connects with the API key by default, so keep them
+      # in sync. Set these in .env; if left empty a password is generated on
+      # every start (printed in the logs).
+      WAHA_API_KEY: ${WAHA_API_KEY:-admin}
+      WAHA_DASHBOARD_USERNAME: ${WAHA_DASHBOARD_USERNAME:-admin}
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_DASHBOARD_PASSWORD:-admin}
+      WHATSAPP_SWAGGER_USERNAME: ${WHATSAPP_SWAGGER_USERNAME:-admin}
+      WHATSAPP_SWAGGER_PASSWORD: ${WHATSAPP_SWAGGER_PASSWORD:-admin}
+
+      # Media storage
+      WAHA_MEDIA_STORAGE: LOCAL
+      WHATSAPP_FILES_FOLDER: /app/.media
+
+      # WebRTC networking for native calls.
+      # Set WAHA_PUBLIC_IP to the server's public/LAN IP the browser uses to
+      # reach it (leave empty for localhost-only testing).
+      WAHA_WEBRTC_UDP_PORT: ${WEBRTC_UDP_PORT:-7881}
+      WAHA_PUBLIC_IP: ${WAHA_PUBLIC_IP:-}
+
+    volumes:
+      # Persist sessions and downloaded media across restarts / image updates
+      - ./sessions:/app/.sessions
+      - ./media:/app/.media

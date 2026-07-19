@@ -25,6 +25,9 @@ import {
   CheckNumberStatusQuery,
   GetMessageQuery,
   MessageButtonReply,
+  MessageAIRichCodeBlockRequest,
+  MessageAIRichMarkdownRequest,
+  MessageAIRichRequest,
   MessageContactVcardRequest,
   MessageFileRequest,
   MessageForwardRequest,
@@ -83,6 +86,41 @@ export class ChattingController {
       request.mentions = await whatsapp.resolveMentionsAll(request.chatId);
     }
     return whatsapp.sendText(request);
+  }
+
+  @Post('/send/ai-rich/code-block')
+  @ApiOperation({ summary: 'Send an AI rich code block message' })
+  @CheckPolicies(CanSession(Action.Send, FromBody('session')))
+  async sendAIRichCodeBlock(
+    @Body() request: MessageAIRichCodeBlockRequest,
+  ): Promise<WAMessage> {
+    const whatsapp = await this.manager.getWorkingSession(request.session);
+    return whatsapp.sendAIRichCodeBlock(request);
+  }
+
+  @Post('/send/ai-rich/markdown')
+  @ApiOperation({ summary: 'Send an AI rich markdown message' })
+  @CheckPolicies(CanSession(Action.Send, FromBody('session')))
+  async sendAIRichMarkdown(
+    @Body() request: MessageAIRichMarkdownRequest,
+  ): Promise<WAMessage> {
+    const whatsapp = await this.manager.getWorkingSession(request.session);
+    return whatsapp.sendAIRichMarkdown(request);
+  }
+
+  @Post('/send/ai-rich')
+  @ApiOperation({
+    summary: 'Send an AI rich message',
+    description:
+      'Send a single AI rich message composed of ordered blocks ' +
+      '(text, code, table, latex, image).',
+  })
+  @CheckPolicies(CanSession(Action.Send, FromBody('session')))
+  async sendAIRichMessage(
+    @Body() request: MessageAIRichRequest,
+  ): Promise<WAMessage> {
+    const whatsapp = await this.manager.getWorkingSession(request.session);
+    return whatsapp.sendAIRichMessage(request);
   }
 
   @Post('/sendImage')

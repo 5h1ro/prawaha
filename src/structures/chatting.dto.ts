@@ -196,6 +196,115 @@ export class MessageTextRequest extends ChatRequest {
   linkPreviewHighQuality?: boolean = false;
 }
 
+export class MessageAIRichCodeBlockRequest extends ChatRequest {
+  @GeneratedMessageIdProperty()
+  id?: string;
+
+  @IsString()
+  code: string = 'console.log("Hello World")';
+
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  footer?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string = 'javascript';
+
+  @ReplyToProperty()
+  @IsOptional()
+  reply_to?: string;
+}
+
+export class MessageAIRichMarkdownRequest extends ChatRequest {
+  @GeneratedMessageIdProperty()
+  id?: string;
+
+  @IsString()
+  text: string = '**Hello World**';
+
+  @ReplyToProperty()
+  @IsOptional()
+  reply_to?: string;
+}
+
+export class AIRichBlock {
+  @ApiProperty({
+    description: 'Block kind',
+    enum: ['text', 'code', 'table', 'latex', 'image'],
+  })
+  @IsString()
+  type: string = 'text';
+
+  @ApiProperty({
+    description: 'Text content for text/code/latex blocks, or table caption',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  text?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @ApiProperty({ description: 'Table title', required: false })
+  @IsOptional()
+  @IsString()
+  title?: string;
+
+  @ApiProperty({
+    description: 'Table header cells',
+    required: false,
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  headers?: string[];
+
+  @ApiProperty({
+    description: 'Table body rows, each an array of cells',
+    required: false,
+    type: [[String]] as any,
+  })
+  @IsOptional()
+  @IsArray()
+  rows?: string[][];
+
+  @ApiProperty({ description: 'Image URL for image blocks', required: false })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  imageText?: string;
+}
+
+export class MessageAIRichRequest extends ChatRequest {
+  @GeneratedMessageIdProperty()
+  id?: string;
+
+  @ApiProperty({
+    description:
+      'Ordered blocks sent as a single AI rich message ' +
+      '(text, code, table, latex, image)',
+    type: [AIRichBlock],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AIRichBlock)
+  blocks: AIRichBlock[];
+
+  @ReplyToProperty()
+  @IsOptional()
+  reply_to?: string;
+}
+
 @ApiExtraModels(FileURL, FileContent)
 export class LinkPreviewData {
   @IsNotEmpty()

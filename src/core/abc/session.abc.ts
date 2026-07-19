@@ -76,6 +76,9 @@ import {
   CheckNumberStatusQuery,
   EditMessageRequest,
   MessageButtonReply,
+  MessageAIRichCodeBlockRequest,
+  MessageAIRichMarkdownRequest,
+  MessageAIRichRequest,
   MessageContactVcardRequest,
   MessageFileRequest,
   MessageForwardRequest,
@@ -523,6 +526,18 @@ export abstract class WhatsappSession {
   abstract checkNumberStatus(request: CheckNumberStatusQuery);
 
   abstract sendText(request: MessageTextRequest);
+
+  sendAIRichCodeBlock(request: MessageAIRichCodeBlockRequest): Promise<any> {
+    throw new NotImplementedByEngineError();
+  }
+
+  sendAIRichMarkdown(request: MessageAIRichMarkdownRequest): Promise<any> {
+    throw new NotImplementedByEngineError();
+  }
+
+  sendAIRichMessage(request: MessageAIRichRequest): Promise<any> {
+    throw new NotImplementedByEngineError();
+  }
 
   sendContactVCard(request: MessageContactVcardRequest) {
     throw new NotImplementedByEngineError();
